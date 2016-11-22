@@ -28,13 +28,14 @@ class Quux {
     public function __construct($x) {
         dump(__METHOD__);
         $this->x = $x;
+        // throw new \Exception('quux fail');
     }
 }
 
 class Corge {
     private $q;
     
-    public function __construct(Quux $q) {
+    public function __construct(Quux $q=null) {
         dump(__METHOD__);
         $this->q = $q;
     }

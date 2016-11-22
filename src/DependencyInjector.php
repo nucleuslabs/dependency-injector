@@ -50,6 +50,7 @@ class DependencyInjector {
      * @param mixed[] $posArgs               Positional arguments
      * @param mixed[] $kwArgs                Keyword arguments
      * @return object Class instance
+     * @throws \Exception
      */
     public function construct($class, $posArgs = [], $kwArgs = []) {
         if(is_string($class)) {
@@ -81,7 +82,7 @@ class DependencyInjector {
         
         $kwParams = array_merge($this->globals, $kwArgs);
 
-        foreach($ctorParams as $i => $param) {
+        foreach($ctorParams as $param) {
             $paramName = $param->getName();
             if(array_key_exists($paramName, $kwParams)) {
                 $instanceArgs[] = $this->coerce($param, $kwParams[$paramName], $kwArgs);
@@ -91,9 +92,19 @@ class DependencyInjector {
             }
             $paramClass = $param->getClass();
             if($paramClass !== null) {
-                $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);
+                if($param->isDefaultValueAvailable()) {
+                    try {
+                        $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);        
+                    } catch(\Exception $ex) {
+                        $instanceArgs[] = $param->getDefaultValue();
+                    }
+                } else {
+                    $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);
+                }
+            } elseif($param->isDefaultValueAvailable()) {
+                $instanceArgs[] = $param->getDefaultValue();
             } else {
-                throw new NotImplementedException();
+                throw new \Exception("Cannot auto inject non-optional, non-class-type-hinted parameter without default parameter: $paramName");
             }
         }
         $instance = $class->newInstanceArgs($instanceArgs);
