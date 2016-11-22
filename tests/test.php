@@ -44,7 +44,7 @@ class Corge {
 $di = new \mpen\DI\DependencyInjector(['cache'=>true]);
 
 
-$obj = $di->construct(Baz::class);
+$obj = $di->construct(Corge::class, [3]);
 dump($obj);
 // $quux = new Quux(7);
 
