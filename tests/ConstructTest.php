@@ -1,5 +1,6 @@
 <?php namespace mpen\DI\Tests;
 
+use mpen\DI\ClassNotFoundException;
 use mpen\DI\DependencyInjector;
 
 class ConstructTest extends \PHPUnit\Framework\TestCase {
@@ -90,6 +91,8 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
         $di->register($quux, '/^q/');
         $this->assertSame($quux, $di->get(Quux::class, 'qbar'));
         $this->assertSame($quux, $di->get(Quux::class, 'qwaldo'));
+
+        $this->expectException(ClassNotFoundException::class);
         $this->assertNull($di->get(Quux::class, 'xbar'));
     }
 

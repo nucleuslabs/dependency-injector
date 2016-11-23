@@ -54,6 +54,7 @@ class DependencyInjector {
      * @param string $className Class name
      * @param null|string $name
      * @return mixed
+     * @throws ClassNotFoundException
      */
     public function get($className, $name = null) {
         if(strlen($name)) {
@@ -70,7 +71,7 @@ class DependencyInjector {
             return $this->call($this->unnamedRegistry[$className]);
         }
         
-        return null;
+        throw new ClassNotFoundException($className);
     }
 
     public function call($callable, array $posArgs = [], array $kwArgs = []) {
