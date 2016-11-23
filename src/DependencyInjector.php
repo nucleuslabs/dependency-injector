@@ -1,8 +1,5 @@
 <?php namespace mpen\DI;
 
-class NotImplementedException extends \BadMethodCallException {
-}
-
 class DependencyInjector {
     /**
      * @var bool Cache constructed options?
@@ -181,7 +178,7 @@ class DependencyInjector {
         return json_encode($var, JSON_UNESCAPED_SLASHES);
     }
 
-    private function cacheKey($className, $args = []) {
+    private function objectCacheKey($className, $args = []) {
         return $className . '(' . implode(',', array_map('self::hash', $args)) . ')';
     }
 
@@ -193,37 +190,37 @@ class DependencyInjector {
     }
 
     /**
-     * @param \ReflectionMethod|\Closure|string $func
+     * @param \ReflectionMethod|\Closure|string $callable
      * @param array $posArgs
      * @param array $kwArgs
      * @return mixed
      * @throws \Exception
      */
-    private function invoke($func, array $posArgs, array $kwArgs) {
-        if($func instanceof \ReflectionMethod) {
-            $funcParams = $func->getParameters();
-        } elseif($func instanceof \Closure) {
-            $ref = new \ReflectionFunction($func);
+    private function invoke($callable, array $posArgs, array $kwArgs) {
+        if($callable instanceof \ReflectionMethod) {
+            $funcParams = $callable->getParameters();
+        } elseif($callable instanceof \Closure) {
+            $ref = new \ReflectionFunction($callable);
             $funcParams = $ref->getParameters();
-        } elseif(is_string($func)) {
-            $parts = preg_split('/::|->|@/', $func, 2); // Laravel uses @ for some reason; we might as well support it
+        } elseif(is_string($callable)) {
+            $parts = preg_split('/::|->|@/', $callable, 2); // Laravel uses @ for some reason; we might as well support it
             if(count($parts) === 2) {
-                $func = new \ReflectionMethod(...$parts);
+                $callable = new \ReflectionMethod(...$parts);
             } else {
-                $func = new \ReflectionFunction($func);
+                $callable = new \ReflectionFunction($callable);
             }
-            $funcParams = $func->getParameters();
-        } elseif(is_array($func)) {
-            if(count($func) !== 2) {
+            $funcParams = $callable->getParameters();
+        } elseif(is_array($callable)) {
+            if(count($callable) !== 2) {
                 throw new \InvalidArgumentException("Array-style callbacks must have exactly 2 elements (class name or instance, method name)");
             }
-            $ref = new \ReflectionMethod(...$func);
+            $ref = new \ReflectionMethod(...$callable);
             $funcParams = $ref->getParameters();
-        } elseif(is_object($func) && method_exists($func, '__invoke')) {
-            $ref = new \ReflectionMethod($func, '__invoke');
+        } elseif(is_object($callable) && method_exists($callable, '__invoke')) {
+            $ref = new \ReflectionMethod($callable, '__invoke');
             $funcParams = $ref->getParameters();
         } else {
-            throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($func));
+            throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
         }
         $funcArgs = [];
 
@@ -276,24 +273,24 @@ class DependencyInjector {
             // the difference is that it affects func_get_args()
         }
         
-        if($func instanceof \ReflectionMethod) {
-            if($func->isConstructor()) {
-                return $func->getDeclaringClass()->newInstanceArgs($funcArgs);
+        if($callable instanceof \ReflectionMethod) {
+            if($callable->isConstructor()) {
+                return $callable->getDeclaringClass()->newInstanceArgs($funcArgs);
             }
 
-            if($func->isStatic()) {
-                return $func->invokeArgs(null, $funcArgs);
+            if($callable->isStatic()) {
+                return $callable->invokeArgs(null, $funcArgs);
             }
             
-            $obj = $this->construct($func->getDeclaringClass());
-            return $func->invokeArgs($obj, $funcArgs);
+            $obj = $this->construct($callable->getDeclaringClass());
+            return $callable->invokeArgs($obj, $funcArgs);
         } 
         
-        if($func instanceof \ReflectionFunction) {
-            return $func->invokeArgs($funcArgs);
+        if($callable instanceof \ReflectionFunction) {
+            return $callable->invokeArgs($funcArgs);
         }
         
-        return call_user_func_array($func, $funcArgs);
+        return call_user_func_array($callable, $funcArgs);
     }
 
     /**
@@ -314,7 +311,7 @@ class DependencyInjector {
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($kwArgs, true);
 
-        $cacheKey = $this->cacheKey($class->getName(), $posArgs);
+        $cacheKey = $this->objectCacheKey($class->getName(), $posArgs);
         if(isset($this->objectCache[$cacheKey])) {
             return $this->objectCache[$cacheKey];
         }
