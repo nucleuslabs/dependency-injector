@@ -4,14 +4,18 @@ class NotImplementedException extends \BadMethodCallException {
 }
 
 class DependencyInjector {
-    private $cache;
-    private $instances;
+    private $useCache;
+    private $objectCache;
+    private $namedRegistry;
+    private $unnamedRegistry;
     private $globals;
 
     public function __construct($options = []) {
-        $this->cache = !empty($options['cache']);
+        $this->useCache = !empty($options['cache']);
         $this->globals = !empty($options['globals']) ? (array)$options['globals'] : [];
-        $this->instances = [];
+        $this->objectCache = [];
+        $this->namedRegistry = [];
+        $this->unnamedRegistry = [];
     }
 
 
@@ -19,14 +23,62 @@ class DependencyInjector {
      * @param string|object $class  Instance or class name
      * @param string|null $namePatt Argument name pattern
      * @param callable $ctor        Function used to contruct an instance of `$class`
+     * @return void
      */
     public function register($class, $namePatt = null, $ctor = null) {
+        if(is_string($class)) {
+            $className = $class;
+            if(!$ctor) {
+                throw new \InvalidArgumentException("Must supply a constructor with a class name");
+            }
+        } else {
+            $className = get_class($class);
+            if(isset($ctor)) {
+                throw new \InvalidArgumentException("Cannot supply constructor function when registring a class instance");
+            }
+            $ctor = function() use ($class) {
+                return $class;
+            };
+        }
+        
+        if(strlen($namePatt)) {
+            $this->namedRegistry[$className][$namePatt] = $ctor;
+        } else {
+            $this->unnamedRegistry[$className] = $ctor;
+        }
+    }
 
+    /**
+     * Gets an object from the registry if it exists.
+     *
+     * @param string $className Class name
+     * @param null|string $name
+     * @return mixed
+     */
+    public function get($className, $name = null) {
+        if(strlen($name)) {
+            if(isset($this->namedRegistry[$className])) {
+                foreach($this->namedRegistry[$className] as $namePatt => $ctor) {
+                    if(preg_match($namePatt, $name)) {
+                        return $this->call($ctor);
+                    }
+                }
+            }
+        }
+        
+        if(array_key_exists($className, $this->unnamedRegistry)) {
+            return $this->call($this->unnamedRegistry[$className]);
+        }
+        
+        return null;
     }
 
     public function call($callable, array $posArgs = [], array $kwArgs = []) {
-
+        return call_user_func_array($callable, $posArgs);
+        // TODO: injection!!
     }
+
+
 
     /**
      * @param mixed $var
@@ -43,6 +95,10 @@ class DependencyInjector {
             return ltrim(spl_object_hash($var), '0');
         }
         return json_encode($var, JSON_UNESCAPED_SLASHES);
+    }
+    
+    private function cacheKey($className, $args=[]) {
+        return $className . '(' . implode(',', array_map('self::hash', $args)) . ')';
     }
 
     /**
@@ -63,12 +119,11 @@ class DependencyInjector {
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($posArgs, true);
 
-        if($this->cache) {
-            $cacheKey = $class->getName() . '(' . implode(',', array_map('self::hash', $posArgs)) . ')';
-            if(isset($this->instances[$cacheKey])) {
-                return $this->instances[$cacheKey];
-            }
+        $cacheKey = $this->cacheKey($class->getName(), $posArgs);
+        if(isset($this->objectCache[$cacheKey])) {
+            return $this->objectCache[$cacheKey];
         }
+        
         $ctorParams = $class->getConstructor()->getParameters();
         $instanceArgs = [];
         
@@ -104,12 +159,16 @@ class DependencyInjector {
             } elseif($param->isDefaultValueAvailable()) {
                 $instanceArgs[] = $param->getDefaultValue();
             } else {
+                // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
+                // they could just use parameter defaults!
                 throw new \Exception("Cannot auto inject non-optional, non-class-type-hinted parameter without default parameter: $paramName");
-            }
+            } 
+            // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
+            // the difference is that it affects func_get_args()
         }
         $instance = $class->newInstanceArgs($instanceArgs);
-        if(isset($cacheKey)) {
-            $this->instances[$cacheKey] = $instance;
+        if($this->useCache) {
+            $this->objectCache[$cacheKey] = $instance;
         }
         return $instance;
     }

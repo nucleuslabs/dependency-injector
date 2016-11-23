@@ -45,11 +45,11 @@ class Corge {
 $di = new \mpen\DI\DependencyInjector(['cache'=>true]);
 
 
-$obj = $di->construct(Corge::class, [3]);
-dump($obj);
-// $quux = new Quux(7);
-
-// $obj1 = $di->construct(Corge::class, 7);
-// $obj2 = $di->construct(Corge::class, 7);
-// dump($obj1 === $obj2);
-dump($di);
+// $obj = $di->construct(Corge::class, [3]);
+// dump($obj);
+// // $quux = new Quux(7);
+//
+// // $obj1 = $di->construct(Corge::class, 7);
+// // $obj2 = $di->construct(Corge::class, 7);
+// // dump($obj1 === $obj2);
+// dump($di);

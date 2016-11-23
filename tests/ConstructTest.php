@@ -1,8 +1,8 @@
-<?php
+<?php namespace mpen\DI\Tests;
 
 use mpen\DI\DependencyInjector;
 
-class DependencyInjectorTest extends \PHPUnit\Framework\TestCase {
+class ConstructTest extends \PHPUnit\Framework\TestCase {
 
 
     public function testBasic() {
@@ -74,6 +74,31 @@ class DependencyInjectorTest extends \PHPUnit\Framework\TestCase {
         $waldo = $di->construct(Waldo::class, [null, 2, 3]);
         $this->assertNull($waldo->g);
         $this->assertCount(2, $waldo->v);
+    }
+
+    public function testRegisterUnnamed() {
+        $di = new DependencyInjector();
+        $quux = new Quux(99);
+        $di->register($quux);
+        $quux2 = $di->get(Quux::class);
+        $this->assertSame($quux, $quux2);
+    }
+
+    public function testRegisterNamed() {
+        $di = new DependencyInjector();
+        $quux = new Quux(99);
+        $di->register($quux, '/^q/');
+        $this->assertSame($quux, $di->get(Quux::class, 'qbar'));
+        $this->assertSame($quux, $di->get(Quux::class, 'qwaldo'));
+        $this->assertNull($di->get(Quux::class, 'xbar'));
+    }
+
+    public function testRegisterArbitrary() {
+        $di = new DependencyInjector();
+        $di->register('xyzzy', null, function() {
+            return new Quux(99);
+        });
+        $this->assertInstanceOf(Quux::class, $di->get('xyzzy'));
     }
 }
 
