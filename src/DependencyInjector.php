@@ -4,18 +4,43 @@ class NotImplementedException extends \BadMethodCallException {
 }
 
 class DependencyInjector {
-    private $useCache;
-    private $objectCache;
-    private $namedRegistry;
-    private $unnamedRegistry;
-    private $globals;
+    /**
+     * @var bool Cache constructed options?
+     */
+    private $cacheObjects = true;
+    /**
+     * @var bool Memoize functions and static methods?
+     */
+    private $memoizeFunctions = true;
+    /**
+     * @var bool Memoize non-static methods?
+     */
+    private $memoizeMethods = false;
+    /**
+     * @var bool Bubble mismatched argument types to constructors?
+     */
+    private $bubbleArgs = true;
+    private $objectCache = [];
+    private $namedRegistry = [];
+    private $unnamedRegistry = [];
+    private $globals = [];
 
     public function __construct($options = []) {
-        $this->useCache = !empty($options['cache']);
-        $this->globals = !empty($options['globals']) ? (array)$options['globals'] : [];
-        $this->objectCache = [];
-        $this->namedRegistry = [];
-        $this->unnamedRegistry = [];
+        if(isset($options['cacheObjects'])) {
+            $this->cacheObjects = (bool)$options['cacheObjects'];
+        }
+        if(isset($options['globals'])) {
+            $this->globals = self::toArray($options['globals'], true);
+        }
+        if(isset($options['memoizeFunctions'])) {
+            $this->memoizeFunctions = (bool)$options['memoizeFunctions'];
+        }
+        if(isset($options['memoizeMethods'])) {
+            $this->memoizeMethods = (bool)$options['memoizeMethods'];
+        }
+        if(isset($options['bubbleArgs'])) {
+            $this->bubbleArgs = (bool)$options['bubbleArgs'];
+        }
     }
 
 
@@ -25,7 +50,7 @@ class DependencyInjector {
      * @param callable $ctor        Function used to contruct an instance of `$class`
      * @return void
      */
-    public function register($class, $namePatt = null, $ctor = null) {
+    public function registerClass($class, $namePatt = null, $ctor = null) {
         if(is_string($class)) {
             $className = $class;
             if(!$ctor) {
@@ -52,11 +77,12 @@ class DependencyInjector {
      * Gets an object from the registry if it exists.
      *
      * @param string $className Class name
-     * @param null|string $name
+     * @param null|string $name Argument name
+     * @param mixed $default Value to return if no match is found
      * @return mixed
-     * @throws ClassNotFoundException
+     * @throws ClassNotFoundException Thrown if object was not found *and* default was not provided
      */
-    public function get($className, $name = null) {
+    public function get($className, $name = null, $default = null) {
         if(strlen($name)) {
             if(isset($this->namedRegistry[$className])) {
                 foreach($this->namedRegistry[$className] as $namePatt => $ctor) {
@@ -69,6 +95,10 @@ class DependencyInjector {
         
         if(array_key_exists($className, $this->unnamedRegistry)) {
             return $this->call($this->unnamedRegistry[$className]);
+        }
+        
+        if(func_num_args() >= 3) {
+            return $default;
         }
         
         throw new ClassNotFoundException($className);
@@ -101,6 +131,13 @@ class DependencyInjector {
     private function cacheKey($className, $args=[]) {
         return $className . '(' . implode(',', array_map('self::hash', $args)) . ')';
     }
+    
+    private static function getType($obj) {
+        if(is_object($obj)) {
+            return get_class($obj);
+        }
+        return gettype($obj);
+    }
 
     /**
      * @param string|\ReflectionClass $class Class name
@@ -115,7 +152,7 @@ class DependencyInjector {
         } elseif($class instanceof \ReflectionClass) {
             // good
         } else {
-            throw new \InvalidArgumentException('Expected string or '.\ReflectionClass::class.', got '.get_class($class));
+            throw new \InvalidArgumentException('Expected string or '.\ReflectionClass::class.' for argument $class, got '.self::getType($class));
         }
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($posArgs, true);
@@ -127,50 +164,59 @@ class DependencyInjector {
             return $this->objectCache[$cacheKey];
         }
         
-        $ctorParams = $class->getConstructor()->getParameters();
-        $instanceArgs = [];
+        $instance = $sentinel = new \stdClass;
         
-        foreach($posArgs as $arg) {
-            $param = reset($ctorParams);
-            if($param && !$param->isVariadic()) {
-                array_shift($ctorParams);
-            }
-            $instanceArgs[] = $this->coerce($param, $arg, $kwArgs);
+        if(!$posArgs && !$kwArgs) {
+            $instance = $this->get($class->getName(), null, $sentinel);
         }
         
-        $kwParams = array_merge($this->globals, $kwArgs);
+        if($instance === $sentinel) {
+            $ctorParams = $class->getConstructor()->getParameters();
+            $instanceArgs = [];
 
-        foreach($ctorParams as $param) {
-            $paramName = $param->getName();
-            if(array_key_exists($paramName, $kwParams)) {
-                $instanceArgs[] = $this->coerce($param, $kwParams[$paramName], $kwArgs);
-            }
-            if($param->isVariadic()) {
-                continue; // don't auto-inject variadic params
-            }
-            $paramClass = $param->getClass();
-            if($paramClass !== null) {
-                if($param->isDefaultValueAvailable()) {
-                    try {
-                        $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);        
-                    } catch(\Exception $ex) {
-                        $instanceArgs[] = $param->getDefaultValue();
-                    }
-                } else {
-                    $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);
+            foreach($posArgs as $arg) {
+                $param = reset($ctorParams);
+                if($param && !$param->isVariadic()) {
+                    array_shift($ctorParams);
                 }
-            } elseif($param->isDefaultValueAvailable()) {
-                $instanceArgs[] = $param->getDefaultValue();
-            } else {
-                // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
-                // they could just use parameter defaults!
-                throw new \Exception("Cannot auto inject non-optional, non-class-type-hinted parameter without default parameter: $paramName");
-            } 
-            // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
-            // the difference is that it affects func_get_args()
+                $instanceArgs[] = $this->coerce($param, $arg, $kwArgs);
+            }
+
+            $kwParams = array_merge($this->globals, $kwArgs);
+
+            foreach($ctorParams as $param) {
+                $paramName = $param->getName();
+                if(array_key_exists($paramName, $kwParams)) {
+                    $instanceArgs[] = $this->coerce($param, $kwParams[$paramName], $kwArgs);
+                }
+                if($param->isVariadic()) {
+                    continue; // don't auto-inject variadic params
+                }
+                $paramClass = $param->getClass();
+                if($paramClass !== null) {
+                    if($param->isDefaultValueAvailable()) {
+                        try {
+                            $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);
+                        } catch(\Exception $ex) {
+                            $instanceArgs[] = $param->getDefaultValue();
+                        }
+                    } else {
+                        $instanceArgs[] = $this->construct($paramClass, [], $kwArgs);
+                    }
+                } elseif($param->isDefaultValueAvailable()) {
+                    $instanceArgs[] = $param->getDefaultValue();
+                } else {
+                    // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
+                    // they could just use parameter defaults!
+                    throw new \Exception("Cannot auto inject non-optional, non-class-type-hinted parameter without default parameter: $paramName");
+                }
+                // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
+                // the difference is that it affects func_get_args()
+            }
+            $instance = $class->newInstanceArgs($instanceArgs);
         }
-        $instance = $class->newInstanceArgs($instanceArgs);
-        if($this->useCache) {
+        
+        if($this->cacheObjects) {
             $this->objectCache[$cacheKey] = $instance;
         }
         return $instance;
@@ -205,8 +251,10 @@ class DependencyInjector {
         }
         if(is_object($arg) && $paramClass->isInstance($arg)) {
             return $arg;
-        } else {
+        } elseif($this->bubbleArgs) {
             return $this->construct($paramClass, [$arg], $kwArgs);
+        } else {
+            throw new \InvalidArgumentException("Could not coerce argument of type ".self::getType($arg)." to ".$paramClass->getName());
         }
     }
 }

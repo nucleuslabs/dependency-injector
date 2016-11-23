@@ -20,11 +20,11 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
     }
 
     public function testCaching() {
-        $di = new DependencyInjector(['cache' => true]);
+        $di = new DependencyInjector(['cacheObjects' => true]);
         $baz = $di->construct(Baz::class);
         $this->assertSame($baz->foo, $baz->bar->foo);
 
-        $di = new DependencyInjector(['cache' => false]);
+        $di = new DependencyInjector(['cacheObjects' => false]);
         $baz = $di->construct(Baz::class);
         $this->assertNotSame($baz->foo, $baz->bar->foo);
     }
@@ -80,7 +80,7 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
     public function testRegisterUnnamed() {
         $di = new DependencyInjector();
         $quux = new Quux(99);
-        $di->register($quux);
+        $di->registerClass($quux);
         $quux2 = $di->get(Quux::class);
         $this->assertSame($quux, $quux2);
     }
@@ -88,7 +88,7 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
     public function testRegisterNamed() {
         $di = new DependencyInjector();
         $quux = new Quux(99);
-        $di->register($quux, '/^q/');
+        $di->registerClass($quux, '/^q/');
         $this->assertSame($quux, $di->get(Quux::class, 'qbar'));
         $this->assertSame($quux, $di->get(Quux::class, 'qwaldo'));
 
@@ -98,10 +98,22 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
 
     public function testRegisterArbitrary() {
         $di = new DependencyInjector();
-        $di->register('xyzzy', null, function() {
+        $di->registerClass('xyzzy', null, function() {
             return new Quux(99);
         });
         $this->assertInstanceOf(Quux::class, $di->get('xyzzy'));
+    }
+
+    public function testRegisterConstruct() {
+        $di = new DependencyInjector();
+        $quux = new Quux(10);
+        $di->registerClass($quux);
+        $di->registerClass(Fred::class, null, function() use ($quux) { // TODO: inject Plugh into the anonymous function
+            return new Plugh($quux);
+        });
+        $fred = $di->construct(Fred::class);
+        $this->assertInstanceOf(Fred::class, $fred);
+        $this->assertSame($quux, $fred->getQuux());
     }
 }
 
@@ -174,5 +186,21 @@ class Waldo {
     public function __construct(Grault $grault=null, ...$variadic) {
         $this->g = $grault;
         $this->v = $variadic;
+    }
+}
+
+interface Fred {
+    public function getQuux();
+}
+
+class Plugh implements Fred {
+    private $q;
+
+    public function __construct(Quux $quux) {
+        $this->q = $quux;
+    }
+
+    public function getQuux() {
+        return $this->q;
     }
 }
