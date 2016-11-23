@@ -119,6 +119,8 @@ class DependencyInjector {
         }
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($posArgs, true);
+        
+        // TODO: check registry. maybe we should only use the registry if no args/kwargs are provided?
 
         $cacheKey = $this->cacheKey($class->getName(), $posArgs);
         if(isset($this->objectCache[$cacheKey])) {
