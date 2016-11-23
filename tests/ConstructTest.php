@@ -1,4 +1,4 @@
-<?php namespace mpen\DI\Tests;
+<?php namespace NoConflict_5835f1741a97a;
 
 use mpen\DI\ClassNotFoundException;
 use mpen\DI\DependencyInjector;

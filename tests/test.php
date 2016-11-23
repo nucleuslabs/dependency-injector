@@ -42,10 +42,14 @@ class Corge {
 
 }
 
-$di = new \mpen\DI\DependencyInjector(['cache'=>true]);
-
-
+// $di = new \mpen\DI\DependencyInjector(['cache'=>true]);
+//
+//
+//
 // $obj = $di->construct(Corge::class, [3]);
+//
+// $di->registerObject($obj, '/^c/');
+//
 // dump($obj);
 // // $quux = new Quux(7);
 //
@@ -53,3 +57,19 @@ $di = new \mpen\DI\DependencyInjector(['cache'=>true]);
 // // $obj2 = $di->construct(Corge::class, 7);
 // // dump($obj1 === $obj2);
 // dump($di);
+
+class Example {
+    private $x;
+    public $f;
+    
+    public function __construct() {
+        $this->x = 10;
+        $this->f = function() {
+            return $this->x;
+        };
+    }
+}
+
+$ex = new Example();
+$f = new ReflectionFunction($ex->f);
+echo $f->invoke().PHP_EOL;
