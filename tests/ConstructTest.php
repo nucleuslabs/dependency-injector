@@ -80,7 +80,7 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
     public function testRegisterUnnamed() {
         $di = new DependencyInjector();
         $quux = new Quux(99);
-        $di->registerClass($quux);
+        $di->registerObject($quux);
         $quux2 = $di->get(Quux::class);
         $this->assertSame($quux, $quux2);
     }
@@ -88,7 +88,7 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
     public function testRegisterNamed() {
         $di = new DependencyInjector();
         $quux = new Quux(99);
-        $di->registerClass($quux, '/^q/');
+        $di->registerObject($quux, '/^q/');
         $this->assertSame($quux, $di->get(Quux::class, 'qbar'));
         $this->assertSame($quux, $di->get(Quux::class, 'qwaldo'));
 
@@ -98,19 +98,17 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
 
     public function testRegisterArbitrary() {
         $di = new DependencyInjector();
-        $di->registerClass('xyzzy', null, function() {
+        $di->registerCallback('xyzzy', function () {
             return new Quux(99);
-        });
+        }, null);
         $this->assertInstanceOf(Quux::class, $di->get('xyzzy'));
     }
 
-    public function testRegisterConstruct() {
+    public function testRegisterInterface() {
         $di = new DependencyInjector();
         $quux = new Quux(10);
-        $di->registerClass($quux);
-        $di->registerClass(Fred::class, null, function() use ($quux) { // TODO: inject Plugh into the anonymous function
-            return new Plugh($quux);
-        });
+        $di->registerObject($quux);
+        $di->registerInterface(Fred::class, Plugh::class);
         $fred = $di->construct(Fred::class);
         $this->assertInstanceOf(Fred::class, $fred);
         $this->assertSame($quux, $fred->getQuux());

@@ -20,6 +20,7 @@ class DependencyInjector {
      * @var bool Bubble mismatched argument types to constructors?
      */
     private $bubbleArgs = true;
+    
     private $objectCache = [];
     private $namedRegistry = [];
     private $unnamedRegistry = [];
@@ -43,34 +44,51 @@ class DependencyInjector {
         }
     }
 
+    /**
+     * When an instance of $className is requested, invoke $callback to construct it. If $namePatt is provided,
+     * the argument name must match that regex.
+     *
+     * @param string $className     Class name
+     * @param callable $callback    Function used to contruct an instance of `$class`
+     * @param string|null $namePatt Argument name regex
+     */
+    public function registerCallback($className, $callback, $namePatt = null) {
+        if(strlen($namePatt)) {
+            $this->namedRegistry[$className][$namePatt] = $callback;
+        } else {
+            $this->unnamedRegistry[$className] = $callback;
+        }
+    }
 
     /**
-     * @param string|object $class  Instance or class name
-     * @param string|null $namePatt Argument name pattern
-     * @param callable $ctor        Function used to contruct an instance of `$class`
-     * @return void
+     * When an instance of the same type of object as $object is requested, use that specific instance instead
+     * of attempting to construct a new one. If $namePatt is provided, the argument name must match that regex.
+     *
+     * @param object $object        Class instance
+     * @param string|null $namePatt Argument name regex
      */
-    public function registerClass($class, $namePatt = null, $ctor = null) {
-        if(is_string($class)) {
-            $className = $class;
-            if(!$ctor) {
-                throw new \InvalidArgumentException("Must supply a constructor with a class name");
-            }
-        } else {
-            $className = get_class($class);
-            if(isset($ctor)) {
-                throw new \InvalidArgumentException("Cannot supply constructor function when registring a class instance");
-            }
-            $ctor = function() use ($class) {
-                return $class;
-            };
-        }
-        
-        if(strlen($namePatt)) {
-            $this->namedRegistry[$className][$namePatt] = $ctor;
-        } else {
-            $this->unnamedRegistry[$className] = $ctor;
-        }
+    public function registerObject($object, $namePatt = null) {
+        $className = get_class($object);
+        $callback = function () use ($object) {
+            return $object;
+        };
+        $this->registerCallback($className, $callback, $namePatt);
+    }
+
+    /**
+     * When an object of type $interfaceName is requested, return an instance of $className instead. May be used
+     * to return concrete implementations of abstract classes, or subclasses as well. If $namePatt is provided, the
+     * argument name must match that regex.
+     *
+     * @param string $interfaceName Interface/parent class name
+     * @param string $className     Name of class to construct
+     * @param string|null $namePatt Argument name regex
+     */
+    public function registerInterface($interfaceName, $className, $namePatt = null) {
+        $callback = function () use ($className) {
+            return $this->construct($className);
+        };
+        $this->registerCallback($interfaceName, $callback, $namePatt);
     }
 
     /**
@@ -157,8 +175,6 @@ class DependencyInjector {
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($posArgs, true);
         
-        // TODO: check registry. maybe we should only use the registry if no args/kwargs are provided?
-
         $cacheKey = $this->cacheKey($class->getName(), $posArgs);
         if(isset($this->objectCache[$cacheKey])) {
             return $this->objectCache[$cacheKey];
