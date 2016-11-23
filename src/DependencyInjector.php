@@ -285,7 +285,8 @@ class DependencyInjector {
                 return $func->invokeArgs(null, $funcArgs);
             }
             
-            throw new \Exception("Unexpected non-static function");
+            $obj = $this->construct($func->getDeclaringClass());
+            return $func->invokeArgs($obj, $funcArgs);
         } 
         
         if($func instanceof \ReflectionFunction) {

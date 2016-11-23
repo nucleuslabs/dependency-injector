@@ -91,7 +91,7 @@ class CallTest extends \PHPUnit\Framework\TestCase {
             'size' => 4068,
         ]);
         $this->expectException(\InvalidArgumentException::class);
-        $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+        $di->call('\NoConflict_5835f1710cc04\StaticController::notify');
     }
 
     public function testDbHex2() {
@@ -105,7 +105,7 @@ class CallTest extends \PHPUnit\Framework\TestCase {
             'app_id' => 'io',
             'size' => 4068,
         ]);
-        $res = $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+        $res = $di->call('\NoConflict_5835f1710cc04\StaticController::notify');
         $this->assertSame($uuid, $res['uuid']);
     }
 
@@ -123,7 +123,7 @@ class CallTest extends \PHPUnit\Framework\TestCase {
         $di->registerCallback(DbHex::class, function($hex) {
             return new DbHex($hex);
         });
-        $res = $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+        $res = $di->call('\NoConflict_5835f1710cc04\StaticController::notify');
         $this->assertSame($uuid, $res['uuid']);
     }
 
@@ -131,6 +131,11 @@ class CallTest extends \PHPUnit\Framework\TestCase {
         $di = new DependencyInjector();
         $this->expectException(\InvalidArgumentException::class);
         $di->registerInterface(DbHex::class, DbHex::class);
+    }
+
+    public function testConstructAndInvoke() {
+        $di = new DependencyInjector();
+        $this->assertSame('abc1',$di->call('\NoConflict_5835f1710cc04\NonStaticController::someMethod', 'abc'));
     }
 }
 
@@ -163,7 +168,7 @@ function four() {
     return 4;
 }
 
-class Controller {
+abstract class StaticController {
 
     public static function notify(DbHex $doc_uuid, Foo $foo) {
         return ['uuid' => $doc_uuid->hex];
@@ -182,5 +187,18 @@ class DbHex {
 class Invokable {
     function __invoke() {
         return 99;
+    }
+}
+
+class NonStaticController {
+    public $foo;
+    
+    public function __construct(Foo $foo) {
+        $this->foo = $foo;
+    }
+
+
+    public function someMethod(DbHex $uuid) {
+        return $uuid->hex . $this->foo->bar;
     }
 }
