@@ -30,6 +30,108 @@ class CallTest extends \PHPUnit\Framework\TestCase {
         $this->assertSame(7, $di->call('\NoConflict_5835f1710cc04\Foo->quux'));
         $this->assertSame(7, $di->call('\NoConflict_5835f1710cc04\Foo@quux'));
     }
+
+    public function testInvoke() {
+        $di = new DependencyInjector();
+        $inv = new Invokable();
+        $this->assertSame(99, $di->call($inv));
+    }
+
+    public function testClosureInjection() {
+        $di = new DependencyInjector();
+        $this->assertSame(1, $di->call(function(Foo $f) {
+            return $f->getBar();
+        }));
+    }
+
+    public function testClosureInjectionRegistration() {
+        $di = new DependencyInjector();
+        $di->registerObject(new Foo(8));
+        $this->assertSame(8, $di->call(function(Foo $f) {
+            return $f->getBar();
+        }));
+    }
+
+    public function testFunctionInjection() {
+        $di = new DependencyInjector();
+        $this->assertInstanceOf(Foo::class, $di->call('\NoConflict_5835f1710cc04\makeFoo'));
+    }
+
+    public function testPosArg() {
+        $di = new DependencyInjector();
+        $foo = new Foo(9);
+        $this->assertSame($foo, $di->call('\NoConflict_5835f1710cc04\makeFoo', [$foo]));
+        $this->assertNotSame($foo, $di->call('\NoConflict_5835f1710cc04\makeFoo', []));
+    }
+
+    public function testKwArg() {
+        $di = new DependencyInjector();
+        $foo = new Foo(10);
+        $this->assertSame($foo, $di->call('\NoConflict_5835f1710cc04\makeFoo', null, ['foo'=>$foo]));
+    }
+
+    public function testGlobalPrecedence() {
+        $di = new DependencyInjector();
+        $globalFoo = new Foo(11);
+        $posFoo = new Foo(12);
+        $kwFoo = new Foo(12);
+        $di->registerGlobal('foo',$globalFoo);
+        $this->assertSame($globalFoo, $di->call('\NoConflict_5835f1710cc04\makeFoo'));
+        $this->assertSame($posFoo, $di->call('\NoConflict_5835f1710cc04\makeFoo', [$posFoo]));
+        $this->assertSame($posFoo, $di->call('\NoConflict_5835f1710cc04\makeFoo', [$posFoo], ['foo'=>$kwFoo]));
+        $this->assertSame($kwFoo, $di->call('\NoConflict_5835f1710cc04\makeFoo', [], ['foo'=>$kwFoo]));
+    }
+
+    public function testDbHex() {
+        $di = new DependencyInjector();
+        $di->registerGlobals([
+            'doc_uuid' => '0d7589716087962a47c927c4de707d1b7cf3fbb8',
+            'user_id' => '2006',
+            'app_id' => 'io',
+            'size' => 4068,
+        ]);
+        $this->expectException(\InvalidArgumentException::class);
+        $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+    }
+
+    public function testDbHex2() {
+        $di = new DependencyInjector([
+            'propagateGlobals' => true,
+        ]);
+        $uuid = '0d7589716087962a47c927c4de707d1b7cf3fbb8';
+        $di->registerGlobals([
+            'doc_uuid' => $uuid,
+            'user_id' => '2006',
+            'app_id' => 'io',
+            'size' => 4068,
+        ]);
+        $res = $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+        $this->assertSame($uuid, $res['uuid']);
+    }
+
+    public function testDbHex3() {
+        $di = new DependencyInjector([
+            'propagateGlobals' => false,
+        ]);
+        $uuid = '0d7589716087962a47c927c4de707d1b7cf3fbb8';
+        $di->registerGlobals([
+            'doc_uuid' => $uuid,
+            'user_id' => '2006',
+            'app_id' => 'io',
+            'size' => 4068,
+        ]);
+        $di->registerCallback(DbHex::class, function($hex) {
+            return new DbHex($hex);
+        });
+        $res = $di->call('\NoConflict_5835f1710cc04\Controller::notify');
+        $this->assertSame($uuid, $res['uuid']);
+    }
+
+    public function testInterfaceRecursion() {
+        $di = new DependencyInjector();
+        $this->expectException(\InvalidArgumentException::class);
+        $di->registerInterface(DbHex::class, DbHex::class);
+    }
 }
 
 
@@ -59,4 +161,26 @@ function makeFoo(Foo $foo) {
 
 function four() {
     return 4;
+}
+
+class Controller {
+
+    public static function notify(DbHex $doc_uuid, Foo $foo) {
+        return ['uuid' => $doc_uuid->hex];
+    }
+}
+
+class DbHex {
+    public $hex;
+    
+    public function __construct($hex) {
+        $this->hex = $hex;
+    }
+
+}
+
+class Invokable {
+    function __invoke() {
+        return 99;
+    }
 }

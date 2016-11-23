@@ -17,9 +17,17 @@ class DependencyInjector {
      */
     private $memoizeMethods = false;
     /**
-     * @var bool Bubble mismatched argument types to constructors?
+     * @var bool Bubble mismatched positional arguments to constructor?
      */
-    private $bubbleArgs = true;
+    private $propagatePosArgs = true;
+    /**
+     * @var bool Bubble mismatched keyword arguments to constructor?
+     */
+    private $propagateKwArgs = true;
+    /**
+     * @var bool Bubble global arguments to constructor?
+     */
+    private $propagateGlobals = false;
 
     private $objectCache = [];
     private $namedRegistry = [];
@@ -39,8 +47,14 @@ class DependencyInjector {
         if(isset($options['memoizeMethods'])) {
             $this->memoizeMethods = (bool)$options['memoizeMethods'];
         }
-        if(isset($options['bubbleArgs'])) {
-            $this->bubbleArgs = (bool)$options['bubbleArgs'];
+        if(isset($options['propagatePosArgs'])) {
+            $this->propagatePosArgs = (bool)$options['propagatePosArgs'];
+        }
+        if(isset($options['propagateKwArgs'])) {
+            $this->propagateKwArgs = (bool)$options['propagateKwArgs'];
+        }
+        if(isset($options['propagateGlobals'])) {
+            $this->propagateGlobals = (bool)$options['propagateGlobals'];
         }
     }
 
@@ -85,10 +99,21 @@ class DependencyInjector {
      * @param string|null $namePatt Argument name regex
      */
     public function registerInterface($interfaceName, $className, $namePatt = null) {
+        if($interfaceName === $className) {
+            throw new \InvalidArgumentException("Interface name and class name cannot be the same ($interfaceName) -- this would create a infinite recursion!");
+        }
         $callback = function () use ($className) {
             return $this->construct($className);
         };
         $this->registerCallback($interfaceName, $callback, $namePatt);
+    }
+
+    public function registerGlobal($name, $value) {
+        $this->globals[$name] = $value;
+    }
+
+    public function registerGlobals($globals) {
+        $this->globals = $globals + $this->globals;
     }
 
     /**
@@ -124,7 +149,17 @@ class DependencyInjector {
         throw new ClassNotFoundException($className);
     }
 
-    public function call($callable, array $posArgs = [], array $kwArgs = []) {
+    /**
+     * Call an arbitrary function, injecting any missing parameters automatically.
+     * 
+     * @param string|array|\ReflectionFunctionAbstract|\Closure $callable
+     * @param array $posArgs Positional arguments
+     * @param array $kwArgs Keyword arguments
+     * @return mixed
+     */
+    public function call($callable, $posArgs = [], $kwArgs = []) {
+        $posArgs = self::toArray($posArgs, false);
+        $kwArgs = self::toArray($kwArgs, true);
         return $this->invoke($callable, $posArgs, $kwArgs);
     }
 
@@ -138,9 +173,9 @@ class DependencyInjector {
             if($var instanceof \Serializable) {
                 return serialize($var);
             }
-            if($var instanceof \JsonSerializable) {
-                return json_encode($var, JSON_UNESCAPED_SLASHES);
-            }
+            // if($var instanceof \JsonSerializable) {
+            //     return json_encode($var, JSON_UNESCAPED_SLASHES);
+            // }
             return ltrim(spl_object_hash($var), '0');
         }
         return json_encode($var, JSON_UNESCAPED_SLASHES);
@@ -159,12 +194,12 @@ class DependencyInjector {
 
     /**
      * @param \ReflectionMethod|\Closure|string $func
-     * @param $posArgs
-     * @param $kwArgs
+     * @param array $posArgs
+     * @param array $kwArgs
      * @return mixed
      * @throws \Exception
      */
-    private function invoke($func, $posArgs, $kwArgs) {
+    private function invoke($func, array $posArgs, array $kwArgs) {
         if($func instanceof \ReflectionMethod) {
             $funcParams = $func->getParameters();
         } elseif($func instanceof \Closure) {
@@ -184,25 +219,35 @@ class DependencyInjector {
             }
             $ref = new \ReflectionMethod(...$func);
             $funcParams = $ref->getParameters();
+        } elseif(is_object($func) && method_exists($func, '__invoke')) {
+            $ref = new \ReflectionMethod($func, '__invoke');
+            $funcParams = $ref->getParameters();
         } else {
             throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($func));
         }
         $funcArgs = [];
 
         foreach($posArgs as $arg) {
-            $param = reset($funcParams);
-            if($param && !$param->isVariadic()) {
-                array_shift($funcParams);
+            if($funcParams) {
+                $param = $funcParams[0];
+                if(!$param->isVariadic()) {
+                    array_shift($funcParams);
+                }
+            } else {
+                $param = null;
             }
-            $funcArgs[] = $this->coerce($param, $arg, $kwArgs);
+            $funcArgs[] = $this->coerce($param, $arg, $kwArgs, $this->propagatePosArgs);
         }
-
-        $kwParams = array_merge($this->globals, $kwArgs);
 
         foreach($funcParams as $param) {
             $paramName = $param->getName();
-            if(array_key_exists($paramName, $kwParams)) {
-                $funcArgs[] = $this->coerce($param, $kwParams[$paramName], $kwArgs);
+            if(array_key_exists($paramName, $kwArgs)) {
+                $funcArgs[] = $this->coerce($param, $kwArgs[$paramName], $kwArgs, $this->propagateKwArgs);
+                continue;
+            }
+            if(array_key_exists($paramName, $this->globals)) {
+                $funcArgs[] = $this->coerce($param, $this->globals[$paramName], $kwArgs, $this->propagateGlobals);
+                continue;
             }
             if($param->isVariadic()) {
                 continue; // don't auto-inject variadic params
@@ -223,7 +268,9 @@ class DependencyInjector {
             } else {
                 // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
                 // they could just use parameter defaults!
-                throw new \Exception("Cannot auto inject non-optional, non-class-type-hinted parameter without default parameter: $paramName");
+                // dump($func);
+                // dump($param);
+                throw new \Exception("Cannot auto inject non-optional, non-object parameter without default parameter: $paramName");
             }
             // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
             // the difference is that it affects func_get_args()
@@ -234,7 +281,11 @@ class DependencyInjector {
                 return $func->getDeclaringClass()->newInstanceArgs($funcArgs);
             }
 
-            return $func->invokeArgs(null/* FIXME: what to put here? */, $funcArgs);
+            if($func->isStatic()) {
+                return $func->invokeArgs(null, $funcArgs);
+            }
+            
+            throw new \Exception("Unexpected non-static function");
         } 
         
         if($func instanceof \ReflectionFunction) {
@@ -296,13 +347,14 @@ class DependencyInjector {
 
     /**
      * Force arg into the type of $param
-     * 
+     *
      * @param \ReflectionParameter|null $param If not provided, return $arg as-is
-     * @param mixed $arg Argument to coerce
-     * @param array $kwArgs Keyword args for bubbling
+     * @param mixed $arg                       Argument to coerce
+     * @param array $kwArgs                    Keyword args for bubbling
+     * @param bool $bubble                     If arg is not of the correct type, should it be passed to the constructor?
      * @return mixed
      */
-    private function coerce(\ReflectionParameter $param = null, $arg, $kwArgs) {
+    private function coerce(\ReflectionParameter $param = null, $arg, $kwArgs, $bubble) {
         if(!$param) {
             return $arg;
         }
@@ -318,10 +370,19 @@ class DependencyInjector {
         }
         if(is_object($arg) && $paramClass->isInstance($arg)) {
             return $arg;
-        } elseif($this->bubbleArgs) {
-            return $this->construct($paramClass, [$arg], $kwArgs);
-        } else {
-            throw new \InvalidArgumentException("Could not coerce argument of type " . self::getType($arg) . " to " . $paramClass->getName());
         }
+
+        $sentinel = new \stdClass;
+        $instance = $this->get($paramClass->getName(), $param->getName(), [$arg], $kwArgs, $sentinel);
+        
+        if($instance !== $sentinel) {
+            return $instance;
+        }
+        
+        if($bubble) {
+            return $this->construct($paramClass, [$arg], $kwArgs);
+        } 
+        
+        throw new \InvalidArgumentException("Could not coerce argument of type " . self::getType($arg) . " to " . $paramClass->getName());
     }
 }
