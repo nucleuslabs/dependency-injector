@@ -1,26 +1,39 @@
 {
-    "name": "nucleuslabs/dependency-injector",
-    "type": "library",
-    "authors": [
-        {
-            "name": "Mark Penner",
-            "email": "mpenner@nucleuslabs.com"
-        }
-    ],
-    "require": {
-        "php": "^5.6 || ^7.0"
-    },
-    "require-dev": {
-        "symfony/var-dumper": "^2.7",
-        "phpunit/phpunit": "^5.6"
-    },
-    "autoload": {
-        "psr-4": {
-            "NucleusLabs\\DI\\": "src/"
-        }
-    },
-    "scripts": {
-        "test": "phpunit --colors=always"
-    },
-    "license": "MIT"
+  "name": "nucleuslabs/dependency-injector",
+  "description": "Dependency Injector",
+  "homepage": "https://bitbucket.org/nucleuslabs/dependency-injector",
+  "keywords": [
+    "dependency",
+    "injector",
+    "injection",
+    "di",
+    "container",
+    "reflection",
+    "invoke",
+    "call",
+    "construct"
+  ],
+  "type": "library",
+  "authors": [
+    {
+      "name": "Mark Penner",
+      "email": "mpenner@nucleuslabs.com"
+    }
+  ],
+  "require": {
+    "php": "^5.6 || ^7.0"
+  },
+  "require-dev": {
+    "symfony/var-dumper": "^2.7",
+    "phpunit/phpunit": "^5.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "NucleusLabs\\DI\\": "src/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit --colors=always"
+  },
+  "license": "MIT"
 }
