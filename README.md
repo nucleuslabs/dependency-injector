@@ -158,7 +158,7 @@ Option             | Type     | Default   | Description
 `cacheObjects`     | bool     | `true`    | Cache constructed objects for future re-use
 `globals`          | array    | `[]`      | Global keyword arguments (automatically injected if parameter name matches)
 `memoizeFunctions` | bool     | `true`    | Not implemented
-`memoizeMethods`   | bool     | false     | Not implemented
+`memoizeMethods`   | bool     | `false`   | Not implemented
 `coercePosArgs`    | bool     | `true`    | Implicitly convert positional arguments to the correct type if they do not match
 `coerceKwArgs`     | bool     | `true`    | Implicitly convert keyword arguments to the correct type if they do not match
 `coerceGlobals`    | bool     | `false`   | Implicitly convert global vars to the correct type if they do not match
