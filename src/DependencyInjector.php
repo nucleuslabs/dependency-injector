@@ -203,10 +203,11 @@ class DependencyInjector {
      * @param \ReflectionParameter[] $funcParams
      * @param array $posArgs
      * @param array $kwArgs
+     * @param string $funcName Function name (for debugging)
      * @return array
      * @throws \Exception
      */
-    private function fillParams($funcParams, $posArgs, $kwArgs) {
+    private function fillParams($funcParams, $posArgs, $kwArgs, $funcName) {
         $funcArgs = [];
 
         foreach($posArgs as $arg) {
@@ -254,7 +255,15 @@ class DependencyInjector {
             } else {
                 // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
                 // they could just use parameter defaults!
-                throw new \Exception("Cannot auto-inject non-optional, non-object parameter without default value: $paramName");
+                $errorMessage = "Cannot auto-inject $$paramName into $funcName; it doesn't have a type nor a default value. ";
+                $errorMessage .= count($posArgs).' positional args provided. ';
+                $allKwArgs = $kwArgs = $this->globals;
+                if($allKwArgs) {
+                    $errorMessage .= 'Kwargs: '.implode(', ',array_keys($allKwArgs)).'.';
+                } else {
+                    $errorMessage .= 'No kwargs.';
+                }
+                throw new \Exception($errorMessage);
             }
             // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
             // the difference is that it affects func_get_args()
@@ -359,7 +368,7 @@ class DependencyInjector {
             throw new \InvalidArgumentException('Expected a callable for $callable, got '.self::getType($callable));
         }
         
-        $funcArgs = $this->fillParams($funcParams, $posArgs, $kwArgs);
+        $funcArgs = $this->fillParams($funcParams, $posArgs, $kwArgs, $this->getFunctionName($callable));
 
         if($callable instanceof \ReflectionClass) {
             return $callable->newInstanceArgs($funcArgs);
