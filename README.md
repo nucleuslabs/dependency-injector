@@ -152,14 +152,15 @@ See the unit tests for more examples.
 
 ## Options
 
-Option | Type | Default | Description
-------------------------------
-`cacheObjects` | bool | `true` | Cache constructed objects for future re-use
-`globals` | array | `[]` | Global keyword arguments (automatically injected if parameter name matches)
-`memoizeFunctions` | bool | `true` | Not implemented
-`memoizeMethods` | bool | false | Not implemented
-`coercePosArgs` | bool | `true` | Implicitly convert positional arguments to the correct type if they do not match
-`coerceKwArgs` | bool | `true` | Implicitly convert keyword arguments to the correct type if they do not match
-`coerceGlobals` | bool | `false` | Implicitly convert global vars to the correct type if they do not match
-`coerceCallback` | callable | construct | Default function to use for the coercion if no callback is registered for the specific type. If not provided, will try using the constructor, passing in the one arg that was in the position of this type.
-`propagateKwArgs` | bool | `false` | Match keyword arguments against top-level call (`false`) or propagate keyword arguments to recursively construct dependencies (`true`)?
+
+Option             | Type     | Default   | Description
+------------------ | -------- | --------- | ---------------------------------------------------------------------------------
+`cacheObjects`     | bool     | `true`    | Cache constructed objects for future re-use
+`globals`          | array    | `[]`      | Global keyword arguments (automatically injected if parameter name matches)
+`memoizeFunctions` | bool     | `true`    | Not implemented
+`memoizeMethods`   | bool     | false     | Not implemented
+`coercePosArgs`    | bool     | `true`    | Implicitly convert positional arguments to the correct type if they do not match
+`coerceKwArgs`     | bool     | `true`    | Implicitly convert keyword arguments to the correct type if they do not match
+`coerceGlobals`    | bool     | `false`   | Implicitly convert global vars to the correct type if they do not match
+`coerceCallback`   | callable | construct | Default function to use for the coercion if no callback is registered for the specific type. If not provided, will try using the constructor, passing in the one arg that was in the position of this type.
+`propagateKwArgs`  | bool     | `false`   | Match keyword arguments against top-level call (`false`) or propagate keyword arguments to recursively construct dependencies (`true`)?
