@@ -146,7 +146,39 @@ $di->registerCallback(Uri::class, function() {
 });
 ```
 
-### More
+### Registering interfaces
+
+What if you function is type-hinted against an interface? How will the DI know which class to substitute?
+For this, you can register an interface!
+
+```php
+$di->registerInterface(\Psr\Http\Message\RequestInterface::class, \GuzzleHttp\Psr7\Request::class);
+```
+
+Note that you can also use this to register abstract and inherited classes.
+
+### Name matching
+
+What if you aren't using singletons? What if, for example, you have two different database connections?
+You can register them using the `$namePatt` option so that they will be injected when the argument name
+matches a regex pattern.
+
+```php
+$di->registerObject($appDb, '~app(?!\\p{Ll})~A');
+$di->registerObject($pcsDb, '~pcs(?!\\p{Ll})~A');
+```
+
+Now `$appDb` will be provided when the function argument starts with "app", and `$pcsDb` will be provided when the
+argument starts with "pcs".
+ 
+If neither pattern matches, the DI will try to construct a database object on its own, like usual, which will likely
+fail because it doesn't know your DSN.
+
+You can always `$di->registerCallback(YourDB::class, ...)` as a fallback if you don't want this to happen. You might
+just want to throw an exception in this case. As powerful as this DI is, it can't hack your DB and steal your
+credentials out of thin air :-)
+
+### More...
 
 See the unit tests for more examples.
 
