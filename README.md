@@ -196,3 +196,8 @@ Option             | Type     | Default   | Description
 `coerceGlobals`    | bool     | `false`   | Implicitly convert global vars to the correct type if they do not match
 `coerceCallback`   | callable | construct | Default function to use for the coercion if no callback is registered for the specific type. If not provided, will try using the constructor, passing in the one arg that was in the position of this type.
 `propagateKwArgs`  | bool     | `false`   | Match keyword arguments against top-level call (`false`) or propagate keyword arguments to recursively construct dependencies (`true`)?
+
+
+## License
+ 
+MIT.
