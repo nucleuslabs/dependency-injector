@@ -192,10 +192,6 @@ class DependencyInjector {
         return json_encode($var, JSON_UNESCAPED_SLASHES);
     }
 
-    private function objectCacheKey($className, $args = []) {
-        return $className . '(' . implode(',', array_map('self::hash', $args)) . ')';
-    }
-
     private static function getType($obj) {
         if(is_object($obj)) {
             return get_class($obj);
@@ -242,12 +238,12 @@ class DependencyInjector {
             if($paramClass !== null) {
                 if($param->isDefaultValueAvailable()) {
                     try {
-                        $funcArgs[] = $this->construct($paramClass, [], $this->propagateKwArgs ? $kwArgs : []);
+                        $funcArgs[] = $this->construct($param, [], $this->propagateKwArgs ? $kwArgs : []);
                     } catch(\Exception $ex) {
                         $funcArgs[] = $param->getDefaultValue();
                     }
                 } else {
-                    $funcArgs[] = $this->construct($paramClass, [], $this->propagateKwArgs ? $kwArgs : []);
+                    $funcArgs[] = $this->construct($param, [], $this->propagateKwArgs ? $kwArgs : []);
                 }
             } elseif($param->isDefaultValueAvailable()) {
                 $funcArgs[] = $param->getDefaultValue();
@@ -316,9 +312,7 @@ class DependencyInjector {
         
         if($callable instanceof \ReflectionFunction) {
             return $callable->getName();
-            
-        } 
-
+        }
         
         throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
     }
@@ -392,34 +386,48 @@ class DependencyInjector {
     }
 
     /**
-     * @param string|\ReflectionClass $class Class name
+     * @param string|\ReflectionClass|\ReflectionParameter $class Class name
      * @param mixed[] $posArgs               Positional arguments
      * @param mixed[] $kwArgs                Keyword arguments
      * @return object Class instance
      * @throws \Exception
      */
     public function construct($class, $posArgs = [], $kwArgs = []) {
+        $paramName = null;
         if(is_string($class)) {
             $class = new \ReflectionClass($class);
         } elseif($class instanceof \ReflectionClass) {
             // good
+        } elseif($class instanceof \ReflectionParameter) {
+            $paramName = $class->getName();
+            $class = $class->getClass();
         } else {
             throw new \InvalidArgumentException('Expected string or ' . \ReflectionClass::class . ' for argument $class, got ' . self::getType($class));
         }
         $posArgs = self::toArray($posArgs, false);
         $kwArgs = self::toArray($kwArgs, true);
 
-        $cacheKey = $this->objectCacheKey($class->getName(), $posArgs);
-        if(isset($this->objectCache[$cacheKey])) {
-            return $this->objectCache[$cacheKey];
-        }
+        $cacheKey = null;
 
+        if($this->cacheObjects) {
+            $cacheKey = $class->getName();
+            if(strlen($paramName)) {
+                $cacheKey .= '$' . $paramName;
+            }
+            $cacheKey .= '(' . implode(',', array_map('self::hash', $posArgs)) . ')';
+
+            if(isset($this->objectCache[$cacheKey])) {
+                return $this->objectCache[$cacheKey];
+            }
+        }
+        
         $sentinel = new \stdClass;
-        $instance = $this->get($class->getName(), null, $posArgs, $kwArgs, $sentinel);
+        $instance = $this->get($class->getName(), $paramName, $posArgs, $kwArgs, $sentinel);
 
         if($instance === $sentinel) {
             $instance = $this->invoke($class, $posArgs, $kwArgs);
         }
+    
 
         if($this->cacheObjects) {
             $this->objectCache[$cacheKey] = $instance;

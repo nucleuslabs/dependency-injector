@@ -96,6 +96,15 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
         $this->assertNull($di->get(Quux::class, 'xbar'));
     }
 
+    public function testNamedInvoke() {
+        $di = new DependencyInjector();
+        $alpha = new Quux(2);
+        $beta = new Quux(3);
+        $di->registerObject($alpha, '/a/A');
+        $di->registerObject($beta, '/b/A');
+        $this->assertSame(6, $di->call('\NoConflict_5835f1741a97a\quake'));
+    }
+
     public function testRegisterArbitrary() {
         $di = new DependencyInjector();
         $di->registerCallback('xyzzy', function () {
@@ -113,6 +122,10 @@ class ConstructTest extends \PHPUnit\Framework\TestCase {
         $this->assertInstanceOf(Fred::class, $fred);
         $this->assertSame($quux, $fred->getQuux());
     }
+}
+
+function quake(Quux $alpha, Quux $beta) {
+    return $alpha->x * $beta->x;
 }
 
 
