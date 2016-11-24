@@ -16,15 +16,23 @@ class DependencyInjector {
     /**
      * @var bool Bubble mismatched positional arguments to constructor?
      */
-    private $propagatePosArgs = true;
+    private $coercePosArgs = true;
     /**
      * @var bool Bubble mismatched keyword arguments to constructor?
      */
-    private $propagateKwArgs = true;
+    private $coerceKwArgs = true;
     /**
      * @var bool Bubble global arguments to constructor?
      */
-    private $propagateGlobals = false;
+    private $coerceGlobals = false;
+    /**
+     * @var null|callable Default function to use to construct a new instance of an object from an arg when coercion is enabled
+     */
+    private $coerceCallback = null;
+    /**
+     * @var bool Use KwArgs in recursive constructors?
+     */
+    private $propagateKwArgs = false;
 
     private $objectCache = [];
     private $namedRegistry = [];
@@ -44,14 +52,20 @@ class DependencyInjector {
         if(isset($options['memoizeMethods'])) {
             $this->memoizeMethods = (bool)$options['memoizeMethods'];
         }
-        if(isset($options['propagatePosArgs'])) {
-            $this->propagatePosArgs = (bool)$options['propagatePosArgs'];
+        if(isset($options['coercePosArgs'])) {
+            $this->coercePosArgs = (bool)$options['coercePosArgs'];
+        }
+        if(isset($options['coerceKwArgs'])) {
+            $this->coerceKwArgs = (bool)$options['coerceKwArgs'];
+        }
+        if(isset($options['coerceGlobals'])) {
+            $this->coerceGlobals = (bool)$options['coerceGlobals'];
         }
         if(isset($options['propagateKwArgs'])) {
             $this->propagateKwArgs = (bool)$options['propagateKwArgs'];
         }
-        if(isset($options['propagateGlobals'])) {
-            $this->propagateGlobals = (bool)$options['propagateGlobals'];
+        if(isset($options['coerceCallback'])) {
+            $this->coerceCallback = $options['coerceCallback'];
         }
     }
 
@@ -208,17 +222,17 @@ class DependencyInjector {
             } else {
                 $param = null;
             }
-            $funcArgs[] = $this->coerce($param, $arg, $kwArgs, $this->propagatePosArgs);
+            $funcArgs[] = $this->coerce($param, $arg, $kwArgs, $this->coercePosArgs);
         }
 
         foreach($funcParams as $param) {
             $paramName = $param->getName();
             if(array_key_exists($paramName, $kwArgs)) {
-                $funcArgs[] = $this->coerce($param, $kwArgs[$paramName], $kwArgs, $this->propagateKwArgs);
+                $funcArgs[] = $this->coerce($param, $kwArgs[$paramName], $this->propagateKwArgs ? $kwArgs : [], $this->coerceKwArgs);
                 continue;
             }
             if(array_key_exists($paramName, $this->globals)) {
-                $funcArgs[] = $this->coerce($param, $this->globals[$paramName], $kwArgs, $this->propagateGlobals);
+                $funcArgs[] = $this->coerce($param, $this->globals[$paramName], $this->propagateKwArgs ? $kwArgs : [], $this->coerceGlobals);
                 continue;
             }
             if($param->isVariadic()) {
@@ -228,12 +242,12 @@ class DependencyInjector {
             if($paramClass !== null) {
                 if($param->isDefaultValueAvailable()) {
                     try {
-                        $funcArgs[] = $this->construct($paramClass, [], $kwArgs);
+                        $funcArgs[] = $this->construct($paramClass, [], $this->propagateKwArgs ? $kwArgs : []);
                     } catch(\Exception $ex) {
                         $funcArgs[] = $param->getDefaultValue();
                     }
                 } else {
-                    $funcArgs[] = $this->construct($paramClass, [], $kwArgs);
+                    $funcArgs[] = $this->construct($paramClass, [], $this->propagateKwArgs ? $kwArgs : []);
                 }
             } elseif($param->isDefaultValueAvailable()) {
                 $funcArgs[] = $param->getDefaultValue();
@@ -406,7 +420,11 @@ class DependencyInjector {
         }
         
         if($bubble) {
-            return $this->construct($paramClass, [$arg], $kwArgs);
+            if($this->coerceCallback) {
+                return $this->call($this->coerceCallback, [$arg], $kwArgs + $this->globals);    
+            } else {
+                return $this->construct($paramClass, [$arg], $kwArgs);
+            }
         } 
         
         throw new \InvalidArgumentException("Could not coerce argument of type " . self::getType($arg) . " to " . $paramClass->getName());

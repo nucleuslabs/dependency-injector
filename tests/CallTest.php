@@ -96,7 +96,7 @@ class CallTest extends \PHPUnit\Framework\TestCase {
 
     public function testDbHex2() {
         $di = new DependencyInjector([
-            'propagateGlobals' => true,
+            'coerceGlobals' => true,
         ]);
         $uuid = '0d7589716087962a47c927c4de707d1b7cf3fbb8';
         $di->registerGlobals([
@@ -111,7 +111,7 @@ class CallTest extends \PHPUnit\Framework\TestCase {
 
     public function testDbHex3() {
         $di = new DependencyInjector([
-            'propagateGlobals' => false,
+            'coerceGlobals' => false,
         ]);
         $uuid = '0d7589716087962a47c927c4de707d1b7cf3fbb8';
         $di->registerGlobals([
@@ -136,6 +136,17 @@ class CallTest extends \PHPUnit\Framework\TestCase {
     public function testConstructAndInvoke() {
         $di = new DependencyInjector();
         $this->assertSame('abc1',$di->call('\NoConflict_5835f1710cc04\NonStaticController::someMethod', 'abc'));
+    }
+
+    public function testPropagateKwArgs() {
+        $di = new DependencyInjector(['propagateKwArgs' => true]);
+        $foo = $di->call('\NoConflict_5835f1710cc04\makeFoo',null,['bar'=>78]);
+        $this->assertSame(78, $foo->bar);
+
+
+        $di = new DependencyInjector(['propagateKwArgs' => false]);
+        $foo = $di->call('\NoConflict_5835f1710cc04\makeFoo',null,['bar'=>78]);
+        $this->assertSame(1, $foo->bar);
     }
 }
 
