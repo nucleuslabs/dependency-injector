@@ -1,7 +1,7 @@
 <?php namespace NoConflict_5835f1710cc04;
 
-use mpen\DI\ClassNotFoundException;
-use mpen\DI\DependencyInjector;
+use NucleusLabs\DI\ClassNotFoundException;
+use NucleusLabs\DI\DependencyInjector;
 
 class CallTest extends \PHPUnit\Framework\TestCase {
 

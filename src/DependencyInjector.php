@@ -1,4 +1,4 @@
-<?php namespace mpen\DI;
+<?php namespace NucleusLabs\DI;
 
 class DependencyInjector {
     /**

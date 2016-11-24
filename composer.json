@@ -1,10 +1,10 @@
 {
-    "name": "mnpenner/dependency-injector",
+    "name": "nucleuslabs/dependency-injector",
     "type": "library",
     "authors": [
         {
             "name": "Mark Penner",
-            "email": "mark@mpen.ca"
+            "email": "mpenner@nucleuslabs.com"
         }
     ],
     "require": {
@@ -16,10 +16,11 @@
     },
     "autoload": {
         "psr-4": {
-            "mpen\\DI\\": "src/"
+            "NucleusLabs\\DI\\": "src/"
         }
     },
     "scripts": {
         "test": "phpunit --colors=always"
-    }
+    },
+    "license": "MIT"
 }

@@ -1,7 +1,7 @@
 <?php namespace NoConflict_5835f1741a97a;
 
-use mpen\DI\ClassNotFoundException;
-use mpen\DI\DependencyInjector;
+use NucleusLabs\DI\ClassNotFoundException;
+use NucleusLabs\DI\DependencyInjector;
 
 class ConstructTest extends \PHPUnit\Framework\TestCase {
 
