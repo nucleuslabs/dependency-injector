@@ -190,38 +190,13 @@ class DependencyInjector {
     }
 
     /**
-     * @param \ReflectionMethod|\Closure|string $callable
+     * @param \ReflectionParameter[] $funcParams
      * @param array $posArgs
      * @param array $kwArgs
-     * @return mixed
+     * @return array
      * @throws \Exception
      */
-    private function invoke($callable, array $posArgs, array $kwArgs) {
-        if($callable instanceof \ReflectionMethod) {
-            $funcParams = $callable->getParameters();
-        } elseif($callable instanceof \Closure) {
-            $ref = new \ReflectionFunction($callable);
-            $funcParams = $ref->getParameters();
-        } elseif(is_string($callable)) {
-            $parts = preg_split('/::|->|@/', $callable, 2); // Laravel uses @ for some reason; we might as well support it
-            if(count($parts) === 2) {
-                $callable = new \ReflectionMethod(...$parts);
-            } else {
-                $callable = new \ReflectionFunction($callable);
-            }
-            $funcParams = $callable->getParameters();
-        } elseif(is_array($callable)) {
-            if(count($callable) !== 2) {
-                throw new \InvalidArgumentException("Array-style callbacks must have exactly 2 elements (class name or instance, method name)");
-            }
-            $ref = new \ReflectionMethod(...$callable);
-            $funcParams = $ref->getParameters();
-        } elseif(is_object($callable) && method_exists($callable, '__invoke')) {
-            $ref = new \ReflectionMethod($callable, '__invoke');
-            $funcParams = $ref->getParameters();
-        } else {
-            throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
-        }
+    private function fillParams($funcParams, $posArgs, $kwArgs) {
         $funcArgs = [];
 
         foreach($posArgs as $arg) {
@@ -262,15 +237,68 @@ class DependencyInjector {
                 }
             } elseif($param->isDefaultValueAvailable()) {
                 $funcArgs[] = $param->getDefaultValue();
+            } elseif($param->isOptional()) {
+                // This can happen with built-in functions: some parameters are optional, but the default value is not provided
+                // If we can't inject it, we have to abort!
+                break;
             } else {
                 // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
                 // they could just use parameter defaults!
-                // dump($func);
-                // dump($param);
-                throw new \Exception("Cannot auto inject non-optional, non-object parameter without default parameter: $paramName");
+                throw new \Exception("Cannot auto-inject non-optional, non-object parameter without default parameter: $paramName");
             }
             // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
             // the difference is that it affects func_get_args()
+        }
+        
+        return $funcArgs;
+    }
+
+    /**
+     * @param \ReflectionFunctionAbstract|\ReflectionClass|\Closure|string $callable
+     * @param array $posArgs
+     * @param array $kwArgs
+     * @return mixed
+     * @throws \Exception
+     */
+    private function invoke($callable, array $posArgs, array $kwArgs) {
+        if($callable instanceof \ReflectionFunctionAbstract) {
+            $funcParams = $callable->getParameters();
+        } elseif($callable instanceof \Closure) {
+            $ref = new \ReflectionFunction($callable);
+            $funcParams = $ref->getParameters();
+        } elseif(is_string($callable)) {
+            $parts = preg_split('/::|->|@/', $callable, 2); // Laravel uses @ for some reason; we might as well support it
+            if(count($parts) === 2) {
+                $callable = new \ReflectionMethod(...$parts);
+            } else {
+                $callable = new \ReflectionFunction($callable);
+            }
+            $funcParams = $callable->getParameters();
+        } elseif(is_array($callable)) {
+            if(count($callable) !== 2) {
+                throw new \InvalidArgumentException("Array-style callables must have exactly 2 elements (class name or instance, and method name)");
+            }
+            $ref = new \ReflectionMethod(...$callable);
+            $funcParams = $ref->getParameters();
+        } elseif(is_object($callable) && method_exists($callable, '__invoke')) {
+            $ref = new \ReflectionMethod($callable, '__invoke');
+            $funcParams = $ref->getParameters();
+        } elseif($callable instanceof \ReflectionClass) {
+            $ctor = $callable->getConstructor();
+            if($ctor) {
+                $funcParams = $ctor->getParameters();
+            } else {
+                // class does not have a constructor, so we cannot pass any constructor arguments
+                return $callable->newInstance();
+            }
+        } else {
+            throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
+        }
+        
+        $funcArgs = $this->fillParams($funcParams, $posArgs, $kwArgs);
+
+        if($callable instanceof \ReflectionClass) {
+            return $callable->newInstanceArgs($funcArgs);
         }
         
         if($callable instanceof \ReflectionMethod) {
@@ -320,7 +348,7 @@ class DependencyInjector {
         $instance = $this->get($class->getName(), null, $posArgs, $kwArgs, $sentinel);
 
         if($instance === $sentinel) {
-            $instance = $this->invoke($class->getConstructor(), $posArgs, $kwArgs);
+            $instance = $this->invoke($class, $posArgs, $kwArgs);
         }
 
         if($this->cacheObjects) {

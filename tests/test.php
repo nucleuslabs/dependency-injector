@@ -58,18 +58,18 @@ class Corge {
 // // dump($obj1 === $obj2);
 // dump($di);
 
-class Example {
-    private $x;
-    public $f;
-    
-    public function __construct() {
-        $this->x = 10;
-        $this->f = function() {
-            return $this->x;
-        };
-    }
-}
-
-$ex = new Example();
-$f = new ReflectionFunction($ex->f);
-echo $f->invoke().PHP_EOL;
+// class Example {
+//     private $x;
+//     public $f;
+//    
+//     public function __construct() {
+//         $this->x = 10;
+//         $this->f = function() {
+//             return $this->x;
+//         };
+//     }
+// }
+//
+// $ex = new Example();
+// $f = new ReflectionFunction($ex->f);
+// echo $f->invoke().PHP_EOL;
