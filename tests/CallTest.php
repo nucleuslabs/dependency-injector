@@ -148,6 +148,17 @@ class CallTest extends \PHPUnit\Framework\TestCase {
         $foo = $di->call('\NoConflict_5835f1710cc04\makeFoo',null,['bar'=>78]);
         $this->assertSame(1, $foo->bar);
     }
+
+    public function testNames() {
+        $di = new DependencyInjector();
+        $this->assertSame('NoConflict_5835f1710cc04\makeFoo',$di->getFunctionName('\NoConflict_5835f1710cc04\makeFoo'));
+        $this->assertSame('NoConflict_5835f1710cc04\Foo::quux',$di->getFunctionName('NoConflict_5835f1710cc04\Foo::quux'));
+        $this->assertSame('NoConflict_5835f1710cc04\Foo->getBar',$di->getFunctionName('\NoConflict_5835f1710cc04\Foo::getBar'));
+        $this->assertSame('NoConflict_5835f1710cc04\Foo->getBar',$di->getFunctionName('\NoConflict_5835f1710cc04\Foo@getBar'));
+        $this->assertSame('NoConflict_5835f1710cc04\Foo->__construct',$di->getFunctionName('\NoConflict_5835f1710cc04\Foo::__construct'));
+        $this->assertSame('Closure',$di->getFunctionName(function(Foo $f){}));
+        $this->assertSame('NoConflict_5835f1710cc04\Foo->__construct',$di->getFunctionName(new \ReflectionClass('\NoConflict_5835f1710cc04\Foo')));
+    }
 }
 
 

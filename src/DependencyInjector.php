@@ -268,6 +268,62 @@ class DependencyInjector {
     }
 
     /**
+     * Gets a name for the given callable. Useful for debugging.
+     * 
+     * @param \ReflectionFunctionAbstract|\ReflectionClass|\Closure|string $callable
+     * @return string
+     */
+    public function getFunctionName($callable) {
+        if(is_string($callable)) {
+            $parts = preg_split('/::|->|@/', $callable, 2); // Laravel uses @ for some reason; we might as well support it
+            if(count($parts) === 2) {
+                $callable = new \ReflectionMethod(...$parts);
+            } else {
+                $callable = new \ReflectionFunction($callable);
+            }
+        }
+
+        if(is_array($callable)) {
+            if(count($callable) !== 2) {
+                throw new \InvalidArgumentException("Array-style callables must have exactly 2 elements (class name or instance, and method name)");
+            }
+            $callable = new \ReflectionMethod(...$callable);
+        }
+
+        if($callable instanceof \Closure) {
+            return \Closure::class; // TODO: include parameter names or something so it's a little more distinguishable?
+        }
+
+        if(is_object($callable) && method_exists($callable, '__invoke')) {
+            $callable = new \ReflectionMethod($callable, '__invoke');
+        }
+
+        if($callable instanceof \ReflectionClass) {
+            $ctor = $callable->getConstructor();
+            if($ctor) {
+                $callable = $ctor;
+            } else {
+                return 'new '.$callable->getName();
+            }
+        }
+
+        if($callable instanceof \ReflectionMethod) {
+            $ret = $callable->getDeclaringClass()->getName();
+            $ret .= $callable->isStatic() ? '::' : '->';
+            $ret .= $callable->getName();
+            return $ret;
+        }
+        
+        if($callable instanceof \ReflectionFunction) {
+            return $callable->getName();
+            
+        } 
+
+        
+        throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
+    }
+
+    /**
      * @param \ReflectionFunctionAbstract|\ReflectionClass|\Closure|string $callable
      * @param array $posArgs
      * @param array $kwArgs
@@ -306,7 +362,7 @@ class DependencyInjector {
                 return $callable->newInstance();
             }
         } else {
-            throw new \InvalidArgumentException('Expected a callable for $func, got '.self::getType($callable));
+            throw new \InvalidArgumentException('Expected a callable for $callable, got '.self::getType($callable));
         }
         
         $funcArgs = $this->fillParams($funcParams, $posArgs, $kwArgs);
