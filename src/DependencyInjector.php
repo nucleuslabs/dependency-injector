@@ -254,7 +254,7 @@ class DependencyInjector {
             } else {
                 // technically, we could inject 0 for ints, [] for arrays, "" for strings and so forth, but if they wanted that,
                 // they could just use parameter defaults!
-                throw new \Exception("Cannot auto-inject non-optional, non-object parameter without default parameter: $paramName");
+                throw new \Exception("Cannot auto-inject non-optional, non-object parameter without default value: $paramName");
             }
             // TODO: what about *optional* params? is it better to omit the args altogether (instead of sending the default) if they aren't supplied, and aren't injectable?
             // the difference is that it affects func_get_args()
