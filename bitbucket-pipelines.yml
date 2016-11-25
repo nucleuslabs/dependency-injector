@@ -1,0 +1,14 @@
+image: mpen/php-node
+
+pipelines:
+  default:
+    - step:
+        script:
+          - cat /etc/*release
+          - echo "[php]" `php --version | grep -oP '(?<=^PHP )[0-9.]+'`
+          - echo "[node]" `node --version`
+          - echo "[npm]" `npm --version`
+          - echo "[hg]" `hg --version | grep -oP '(?<=version )[0-9.]+'`
+          - echo "[composer]" `composer --version | grep -oP '(?<=version )[0-9.]+'`
+          - composer install --optimize-autoloader --no-suggest --no-progress
+          - composer test
